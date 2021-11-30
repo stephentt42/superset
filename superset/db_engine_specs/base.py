@@ -680,7 +680,6 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         to_sql_kwargs["name"] = table.table
 
         if table.schema:
-
             # Only add schema when it is preset and non empty.
             to_sql_kwargs["schema"] = table.schema
 
@@ -980,7 +979,7 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         return sql
 
     @classmethod
-    def estimate_statement_cost(cls, statement: str, cursor: Any,) -> Dict[str, Any]:
+    def estimate_statement_cost(cls, statement: str, cursor: Any) -> Dict[str, Any]:
         """
         Generate a SQL query that estimates the cost of a given statement.
 
@@ -1268,6 +1267,24 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
                 raise ex
         return extra
 
+    @staticmethod
+    def update_encrypted_extra_params(database: "Database", params: Dict[str, Any]):
+        """
+        Some databases require some sensitive information which do not conform to
+        the username:password syntax normally used by SQLAlchemy.
+
+        :param database: database instance from which to extract extras
+        :param params: params to be updated
+        """
+        if not database.encrypted_extra:
+            return
+        try:
+            encrypted_extra = json.loads(database.encrypted_extra)
+            params.update(encrypted_extra)
+        except json.JSONDecodeError as ex:
+            logger.error(ex, exc_info=True)
+            raise ex
+
     @classmethod
     def is_readonly_query(cls, parsed_query: ParsedQuery) -> bool:
         """Pessimistic readonly, 100% sure statement won't mutate anything"""
@@ -1400,7 +1417,6 @@ class BasicParametersType(TypedDict, total=False):
 
 
 class BasicParametersMixin:
-
     """
     Mixin for configuring DB engine specs via a dictionary.
 

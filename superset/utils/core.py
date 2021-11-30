@@ -119,7 +119,6 @@ if TYPE_CHECKING:
     from superset.connectors.base.models import BaseColumn, BaseDatasource
     from superset.models.core import Database
 
-
 logging.getLogger("MARKDOWN").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -526,7 +525,7 @@ def format_timedelta(time_delta: timedelta) -> str:
     return str(time_delta)
 
 
-def base_json_conv(obj: Any,) -> Any:  # pylint: disable=inconsistent-return-statements
+def base_json_conv(obj: Any, ) -> Any:  # pylint: disable=inconsistent-return-statements
     if isinstance(obj, memoryview):
         obj = obj.tobytes()
     if isinstance(obj, np.int64):
@@ -1126,6 +1125,7 @@ def merge_extra_filters(form_data: Dict[str, Any]) -> None:
             "__time_origin": "druid_time_origin",
             "__granularity": "granularity",
         }
+
         # Grab list of existing filters 'keyed' on the column and operator
 
         def get_filter_key(f: Dict[str, Any]) -> str:
@@ -1520,7 +1520,7 @@ def split(
         elif character == ")":
             parens -= 1
         elif character == quote:
-            if quotes and string[j - len(escaped_quote) + 1 : j + 1] != escaped_quote:
+            if quotes and string[j - len(escaped_quote) + 1: j + 1] != escaped_quote:
                 quotes = False
             elif not quotes:
                 quotes = True
@@ -1813,7 +1813,7 @@ def parse_boolean_string(bool_str: Optional[str]) -> bool:
         return False
 
 
-def apply_max_row_limit(limit: int, max_limit: Optional[int] = None,) -> int:
+def apply_max_row_limit(limit: int, max_limit: Optional[int] = None, ) -> int:
     """
     Override row limit if max global limit is defined
 
@@ -1833,3 +1833,23 @@ def apply_max_row_limit(limit: int, max_limit: Optional[int] = None,) -> int:
     if limit != 0:
         return min(max_limit, limit)
     return max_limit
+
+
+def import_string(name: str):
+    """
+    Import a dotted module path and return the attribute/class designated by the
+    last name in the path. Raise ImportError if the import failed.
+    """
+    try:
+        module_path, class_name = name.rsplit(':', 1)
+    except ValueError as err:
+        raise ImportError(f"{name} doesn't look like a module path") from err
+
+    try:
+        from importlib import import_module
+
+        module = import_module(module_path)
+        return getattr(module, class_name)
+    except AttributeError as err:
+        raise ImportError(f'Module "{module_path}" does not define '
+                          f'a "{class_name}" attribute/class') from err

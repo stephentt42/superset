@@ -20,6 +20,7 @@ from unittest.mock import Mock, patch
 from sqlalchemy.engine.url import URL
 
 from superset.db_engine_specs.trino import TrinoEngineSpec
+from superset.utils import core as utils
 from tests.integration_tests.db_engine_specs.base_tests import TestDbEngineSpec
 
 
@@ -87,3 +88,79 @@ class TestTrinoDbEngineSpec(TestDbEngineSpec):
         self.assertEqual(connect_args.get("http_scheme"), "https")
         self.assertEqual(connect_args.get("verify"), "/path/to/tls.crt")
         create_ssl_cert_file_func.assert_called_once_with(database.server_cert)
+
+    @patch("trino.auth.BasicAuthentication")
+    def test_auth_basic(self, auth: Mock):
+        database = Mock()
+
+        auth_params = dict(
+            username="username",
+            password="password",
+        )
+        database.encrypted_extra = json.dumps(
+            dict(auth_method="basic", auth_params=auth_params)
+        )
+
+        params = {}
+        TrinoEngineSpec.update_encrypted_extra_params(database, params)
+        connect_args = params.setdefault("connect_args", {})
+        self.assertEqual(connect_args.get("http_scheme"), "https")
+        auth.assert_called_once_with(**auth_params)
+
+    @patch("trino.auth.KerberosAuthentication")
+    def test_auth_kerberos(self, auth: Mock):
+        database = Mock()
+
+        auth_params = dict(
+            service_name="superset",
+            mutual_authentication=False,
+            delegate=True,
+        )
+        database.encrypted_extra = json.dumps(
+            dict(auth_method="kerberos", auth_params=auth_params)
+        )
+
+        params = {}
+        TrinoEngineSpec.update_encrypted_extra_params(database, params)
+        connect_args = params.setdefault("connect_args", {})
+        self.assertEqual(connect_args.get("http_scheme"), "https")
+        auth.assert_called_once_with(**auth_params)
+
+    @patch("trino.auth.JWTAuthentication")
+    def test_auth_jwt(self, auth: Mock):
+        database = Mock()
+
+        auth_params = dict(token="jwt-token-string")
+        database.encrypted_extra = json.dumps(
+            dict(auth_method="jwt", auth_params=auth_params)
+        )
+
+        params = {}
+        TrinoEngineSpec.update_encrypted_extra_params(database, params)
+        connect_args = params.setdefault("connect_args", {})
+        self.assertEqual(connect_args.get("http_scheme"), "https")
+        auth.assert_called_once_with(**auth_params)
+
+    def test_auth_custom_auth(self):
+        database = Mock()
+        auth_class = Mock()
+
+        auth_params = dict(
+            params1="params1",
+            params2="params2"
+        )
+        database.encrypted_extra = json.dumps(dict(
+            auth_method="module:TrinoAuthClass",
+            auth_params=auth_params
+        ))
+
+        with patch.object(utils, "import_string",
+                          return_value=auth_class) as import_loader:  # type: Mock
+            params = {}
+            TrinoEngineSpec.update_encrypted_extra_params(database, params)
+
+            connect_args = params.setdefault("connect_args", {})
+            self.assertEqual(connect_args.get("http_scheme"), "https")
+
+            import_loader.assert_called_once_with("module:TrinoAuthClass")
+            auth_class.assert_called_once_with(**auth_params)
